@@ -17,6 +17,7 @@ const ADMIN_USERNAME = "admin@example.com";
 const ADMIN_PASSWORD = "cxo2026";
 const AUTH_KEY = "monthlyActivityAdminAuthenticated";
 const ACCESS_TOKEN_KEY = "monthlyActivitySupabaseAccessToken";
+const RECOVERY_TOKEN_KEY = "monthlyActivitySupabaseRecoveryToken";
 const PROTECTED_ROUTES = ["admin", "settings"];
 const CLOUD_CONFIG = window.CXO_CONFIG || {};
 
@@ -196,6 +197,59 @@ async function handleLogin(event) {
   state.pendingProtectedRoute = null;
   showToast("登入成功。");
   setRoute(route);
+}
+
+function recoveryAccessToken() {
+  const hashParams = new URLSearchParams(location.hash.slice(1));
+  if (hashParams.get("type") !== "recovery") return "";
+  return hashParams.get("access_token") || "";
+}
+
+function openPasswordSetup(accessToken) {
+  sessionStorage.setItem(RECOVERY_TOKEN_KEY, accessToken);
+  $("#passwordError").textContent = "";
+  $("#passwordForm").reset();
+  $("#passwordOverlay").hidden = false;
+  $("#passwordForm").elements.password.focus();
+}
+
+async function handlePasswordSetup(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const password = form.elements.password.value;
+  const confirmPassword = form.elements.confirmPassword.value;
+  const accessToken = sessionStorage.getItem(RECOVERY_TOKEN_KEY);
+
+  if (password !== confirmPassword) {
+    $("#passwordError").textContent = "兩次輸入的密碼不一致。";
+    return;
+  }
+
+  if (!accessToken || !cloudIsConfigured()) {
+    $("#passwordError").textContent = "密碼設定連結已失效，請重新申請一封重設信。";
+    return;
+  }
+
+  try {
+    const response = await fetch(`${CLOUD_CONFIG.supabaseUrl}/auth/v1/user`, {
+      method: "PUT",
+      headers: cloudHeaders(accessToken),
+      body: JSON.stringify({ password }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.msg || result.message || "密碼設定失敗");
+    }
+
+    sessionStorage.removeItem(RECOVERY_TOKEN_KEY);
+    history.replaceState(null, "", `${location.pathname}${location.search}#home`);
+    $("#passwordOverlay").hidden = true;
+    showToast("密碼設定完成，現在可以登入管理後台。");
+    openLogin("admin");
+  } catch (error) {
+    $("#passwordError").textContent =
+      error.message || "密碼設定失敗，請重新申請一封重設信。";
+  }
 }
 
 function logout() {
@@ -880,6 +934,7 @@ document.addEventListener("click", async (event) => {
 
 $("#proposalForm").addEventListener("submit", handleProposalSubmit);
 $("#loginForm").addEventListener("submit", handleLogin);
+$("#passwordForm").addEventListener("submit", handlePasswordSetup);
 $("#settingsForm").addEventListener("submit", handleSettingsSubmit);
 $("#statusFilter").addEventListener("change", renderProposalList);
 $("#resetSettingsButton").addEventListener("click", resetSettings);
@@ -923,6 +978,13 @@ $("#proposalImage").addEventListener("change", async (event) => {
 });
 
 function bootFromHash() {
+  const accessToken = recoveryAccessToken();
+  if (accessToken) {
+    openPasswordSetup(accessToken);
+    render();
+    return;
+  }
+
   const hash = location.hash.replace("#", "");
   if (hash.startsWith("register/")) {
     setRoute("register", hash.split("/")[1]);

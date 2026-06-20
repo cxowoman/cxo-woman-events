@@ -313,6 +313,24 @@
       </form>
     </div>
 
+    <div class="login-overlay" id="passwordOverlay" hidden>
+      <form class="login-card" id="passwordForm">
+        <p class="eyebrow">Administrator</p>
+        <h2>設定管理員密碼</h2>
+        <p>請設定至少 8 個字元的新密碼。完成後即可登入管理後台。</p>
+        <label>
+          新密碼
+          <input name="password" type="password" minlength="8" autocomplete="new-password" required />
+        </label>
+        <label>
+          再輸入一次
+          <input name="confirmPassword" type="password" minlength="8" autocomplete="new-password" required />
+        </label>
+        <p class="login-error" id="passwordError" role="alert"></p>
+        <button class="primary-btn" type="submit">確認設定密碼</button>
+      </form>
+    </div>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="script.js"></script>
