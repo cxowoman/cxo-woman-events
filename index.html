@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>月活動中心</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="config.js"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="nav-shell" aria-label="主要導覽">
+        <a class="brand" href="#home" data-route="home">
+          <span class="brand-mark">月</span>
+          <span>
+            <strong id="brandName">月活動中心</strong>
+            <small id="brandTagline">提案、審核、報名一次完成</small>
+          </span>
+        </a>
+        <div class="nav-actions">
+          <button class="nav-link is-active" data-route="home" type="button">首頁</button>
+          <button class="nav-link" data-route="proposal" type="button">活動提案</button>
+          <button class="nav-link" data-route="admin" type="button">管理後台</button>
+          <button class="nav-link" data-route="settings" type="button">網站設定</button>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <section class="view hero-view is-active" id="view-home">
+        <div class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">CXO woman</p>
+            <h1 id="heroTitle">讓老師每月提出活動，你一鍵審核，會員立刻報名。</h1>
+            <p id="heroDescription">
+              集中管理活動提案、圖片、後台審核、會員報名與通知，讓每月活動流程清楚又有效率。
+            </p>
+            <div class="hero-actions">
+              <button class="primary-btn hero-cta" data-route="proposal" type="button">申請活動提案</button>
+            </div>
+          </div>
+        </div>
+
+        <section class="section-shell">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Open Events</p>
+              <h2>已開放報名活動</h2>
+            </div>
+          </div>
+          <div class="event-grid" id="publicEvents"></div>
+          <div class="empty-state" id="emptyPublicEvents">
+            <h3>目前還沒有開放報名的活動</h3>
+            <p>到「活動提案」送出一筆活動，再到後台核准，就會出現在這裡。</p>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="view-proposal">
+        <div class="page-intro">
+          <p class="eyebrow">Event Proposal</p>
+          <h1>活動提案</h1>
+          <p>請提供完整文案與圖片，後台核准後會自動建立會員報名頁。</p>
+        </div>
+
+        <form class="form-shell" id="proposalForm">
+          <div class="form-grid">
+            <label>
+              老師姓名
+              <input name="teacherName" autocomplete="name" required placeholder="例如：林佳蓉" />
+            </label>
+            <label>
+              聯絡 Email
+              <input name="teacherEmail" type="email" autocomplete="email" required placeholder="teacher@example.com" />
+            </label>
+            <label class="wide">
+              活動名稱
+              <input name="title" required placeholder="例如：春季香氛手作工作坊" />
+            </label>
+            <label>
+              活動日期
+              <input name="date" type="date" required />
+            </label>
+            <label>
+              活動時間
+              <input name="time" type="time" required />
+            </label>
+            <label>
+              地點
+              <input name="location" required placeholder="例如：台北教室 A" />
+            </label>
+            <label>
+              名額
+              <input name="capacity" type="number" min="1" required placeholder="20" />
+            </label>
+            <label>
+              費用
+              <input name="price" required placeholder="例如：會員 NT$800" />
+            </label>
+            <label>
+              活動分類
+              <select name="category" required>
+                <option value="">請選擇</option>
+                <option>手作</option>
+                <option>身心靈</option>
+                <option>親子</option>
+                <option>講座</option>
+                <option>戶外</option>
+              </select>
+            </label>
+            <label class="wide">
+              活動文案
+              <textarea name="description" required rows="6" placeholder="請描述活動亮點、適合對象、老師想帶給學員的體驗。"></textarea>
+            </label>
+            <label class="wide">
+              注意事項
+              <textarea name="notes" rows="4" placeholder="例如：請提前 10 分鐘報到，材料費已包含在費用內。"></textarea>
+            </label>
+            <label class="wide upload-box">
+              活動圖片
+              <input name="image" id="proposalImage" type="file" accept="image/*" />
+              <span>可上傳 JPG、PNG 或 WebP。沒有圖片時系統會使用預設封面。</span>
+              <img id="imagePreview" alt="" />
+            </label>
+          </div>
+          <div class="form-footer">
+            <p>送出後狀態會是「待審核」，管理者核准後才會公開。</p>
+            <button class="primary-btn" type="submit">送出提案</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="view" id="view-admin">
+        <div class="page-intro protected-heading">
+          <div>
+            <p class="eyebrow">Admin Dashboard</p>
+            <h1>管理後台</h1>
+            <p>審核活動提案、開放會員報名、查看完整名單並匯出資料。</p>
+          </div>
+          <button class="secondary-btn compact" data-logout type="button">登出</button>
+        </div>
+
+        <div class="stats-grid" id="statsGrid"></div>
+        <div class="cloud-status" id="cloudStatus"></div>
+        <section class="registration-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Member Registrations</p>
+              <h2>會員報名總表</h2>
+            </div>
+            <button class="secondary-btn compact" id="refreshCloudButton" type="button">
+              更新雲端資料
+            </button>
+          </div>
+          <div class="registration-table-wrap">
+            <table class="registration-table">
+              <thead>
+                <tr>
+                  <th>活動</th>
+                  <th>會員</th>
+                  <th>聯絡方式</th>
+                  <th>身份</th>
+                  <th>報名時間</th>
+                </tr>
+              </thead>
+              <tbody id="allRegistrationRows"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="emptyRegistrationRows">
+            <h3>目前尚無會員報名</h3>
+            <p>會員完成報名後，完整資料會顯示在這裡。</p>
+          </div>
+        </section>
+
+        <div class="admin-layout">
+          <section>
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Proposals</p>
+                <h2>活動提案</h2>
+              </div>
+              <select id="statusFilter" aria-label="篩選狀態">
+                <option value="all">全部狀態</option>
+                <option value="pending">待審核</option>
+                <option value="approved">已核准</option>
+                <option value="rejected">已退回</option>
+              </select>
+            </div>
+            <div class="admin-list" id="proposalList"></div>
+          </section>
+
+          <aside class="admin-detail" id="adminDetail">
+            <div class="empty-detail">
+              <h3>選擇一個活動</h3>
+              <p>你可以查看活動內容、報名連結與會員報名資料。</p>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="view-settings">
+        <div class="page-intro protected-heading">
+          <div>
+            <p class="eyebrow">Website Editor</p>
+            <h1>網站設定</h1>
+            <p>直接修改首頁文字、品牌顏色與主視覺。儲存後會立即套用在這台裝置。</p>
+          </div>
+          <button class="secondary-btn compact" data-logout type="button">登出</button>
+        </div>
+
+        <div class="settings-layout">
+          <form class="form-shell" id="settingsForm">
+            <div class="settings-section">
+              <div>
+                <p class="eyebrow">Brand</p>
+                <h2>品牌資訊</h2>
+              </div>
+              <div class="form-grid">
+                <label>
+                  網站名稱
+                  <input name="siteName" required maxlength="30" />
+                </label>
+                <label>
+                  導覽列短句
+                  <input name="tagline" required maxlength="50" />
+                </label>
+                <label class="wide">
+                  首頁大標題
+                  <textarea name="heroTitle" required rows="3" maxlength="100"></textarea>
+                </label>
+                <label class="wide">
+                  首頁介紹文字
+                  <textarea name="heroDescription" required rows="4" maxlength="220"></textarea>
+                </label>
+                <label>
+                  聯絡 Email
+                  <input name="contactEmail" type="email" placeholder="hello@example.com" />
+                </label>
+                <label>
+                  品牌主色
+                  <span class="color-control">
+                    <input name="primaryColor" type="color" />
+                    <input name="primaryColorText" aria-label="品牌主色色碼" maxlength="7" placeholder="#45634D" />
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div>
+                <p class="eyebrow">Hero Image</p>
+                <h2>首頁主視覺</h2>
+              </div>
+              <div class="form-grid">
+                <label class="wide">
+                  圖片網址
+                  <input name="heroImageUrl" type="url" placeholder="https://..." />
+                </label>
+                <label class="wide upload-box">
+                  或直接上傳圖片
+                  <input name="heroImageFile" id="heroImageFile" type="file" accept="image/*" />
+                  <span>建議使用橫式照片，至少 1600 × 900 px。上傳會取代圖片網址。</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-footer">
+              <button class="ghost-btn" id="resetSettingsButton" type="button">恢復預設內容</button>
+              <div class="card-actions">
+                <button class="secondary-btn" data-route="home" type="button">查看首頁</button>
+                <button class="primary-btn" type="submit">儲存網站設定</button>
+              </div>
+            </div>
+          </form>
+
+          <aside class="settings-help">
+            <p class="eyebrow">Preview Guide</p>
+            <h2>怎麼修改</h2>
+            <ol>
+              <li>先改網站名稱與首頁標題。</li>
+              <li>選擇符合品牌的主色。</li>
+              <li>上傳真實活動照片作為首頁主視覺。</li>
+              <li>按「儲存網站設定」，再回首頁查看。</li>
+            </ol>
+            <p class="settings-note">
+              網站文字與主視覺設定會保存在目前使用的瀏覽器；活動提案與會員報名資料則集中儲存在雲端。
+            </p>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="view-register">
+        <div class="registration-shell" id="registrationShell"></div>
+      </section>
+    </main>
+
+    <div class="login-overlay" id="loginOverlay" hidden>
+      <form class="login-card" id="loginForm">
+        <button class="login-close" data-close-login type="button" aria-label="關閉登入視窗">×</button>
+        <p class="eyebrow">Administrator</p>
+        <h2>管理員登入</h2>
+        <p>登入後才能進入管理後台與網站設定。</p>
+        <label>
+          Email 帳號
+          <input name="username" type="email" autocomplete="username" required />
+        </label>
+        <label>
+          密碼
+          <input name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <p class="login-error" id="loginError" role="alert"></p>
+        <button class="primary-btn" type="submit">登入</button>
+      </form>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
