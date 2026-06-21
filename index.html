@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>月活動中心</title>
-    <link rel="stylesheet" href="styles.css?v=202606211630" />
+    <link rel="stylesheet" href="styles.css?v=202606211650" />
     <script src="config.js"></script>
   </head>
   <body>
@@ -267,6 +267,35 @@
               </div>
             </div>
 
+            <div class="settings-section">
+              <div>
+                <p class="eyebrow">Email Template</p>
+                <h2>活動報名通知信</h2>
+                <p class="section-note">
+                  可自由編輯每封信固定出現的開頭與結尾；中間的活動資訊會由系統自動帶入。
+                </p>
+              </div>
+              <div class="form-grid">
+                <label class="wide">
+                  公版開頭
+                  <textarea name="emailOpening" rows="6" required></textarea>
+                </label>
+                <div class="wide email-auto-fields">
+                  <p class="eyebrow">Auto Fields</p>
+                  <h3>系統會自動帶入</h3>
+                  <ul>
+                    <li>會員報名的活動主題</li>
+                    <li>活動日期、開始時間、結束時間</li>
+                    <li>地點、名額、費用</li>
+                  </ul>
+                </div>
+                <label class="wide">
+                  公版結尾
+                  <textarea name="emailClosing" rows="6" required></textarea>
+                </label>
+              </div>
+            </div>
+
             <div class="form-footer">
               <button class="ghost-btn" id="resetSettingsButton" type="button">恢復預設內容</button>
               <div class="card-actions">
@@ -399,8 +428,17 @@
       </form>
     </div>
 
+    <div class="login-overlay" id="registrationSuccessOverlay" hidden>
+      <div class="success-card">
+        <p class="eyebrow">Registration Complete</p>
+        <h2>報名成功，請前往 email 收信確認</h2>
+        <p>系統已收到你的報名資料，也會依照設定寄出後續活動提醒。</p>
+        <button class="primary-btn" data-close-registration-success type="button">回活動列表</button>
+      </div>
+    </div>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="script.js?v=202606211630"></script>
+    <script src="script.js?v=202606211650"></script>
   </body>
 </html>

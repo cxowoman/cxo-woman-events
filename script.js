@@ -4,14 +4,18 @@ const DEFAULT_IMAGE =
 const DEFAULT_HERO_IMAGE =
   "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1800&q=80";
 const DEFAULT_SETTINGS = {
-  siteName: "月活動中心",
-  tagline: "提案、審核、報名一次完成",
-  heroTitle: "讓老師每月提出活動，你一鍵審核，會員立刻報名。",
+  siteName: "女創俱樂部｜實體聚會",
+  tagline: "舞台影響力",
+  heroTitle: "讓妳的專業被看見，讓每一次聚會都創造新的可能",
   heroDescription:
-    "集中管理活動提案、圖片、後台審核、會員報名與通知，讓每月活動流程清楚又有效率。",
-  contactEmail: "",
+    "不論妳想舉辦講座、交流會、體驗課或主題聚會，都可以在這裡提出活動企劃。女創俱樂部將協助審核、上架與管理報名名單，讓妳更專注在內容與分享；會員也能快速找到適合自己的活動，從參與開始，遇見合作、資源與更多可能。",
+  contactEmail: "hana31923@gmail.com",
   primaryColor: "#003e3e",
   heroImage: DEFAULT_HERO_IMAGE,
+  emailOpening:
+    "親愛的會員您好，\n\n我們已收到您的活動報名，以下是本次活動資訊，請您先保留時間並確認資料。",
+  emailClosing:
+    "提醒您，活動前系統會再寄出提醒信。\n\n期待在活動現場與您相見。\n\nCXO Woman 女創俱樂部",
 };
 const ADMIN_USERNAME = "admin@example.com";
 const ADMIN_PASSWORD = "cxo2026";
@@ -128,6 +132,15 @@ function showToast(message) {
   toast.textContent = message;
   toast.classList.add("is-visible");
   window.setTimeout(() => toast.classList.remove("is-visible"), 2600);
+}
+
+function showRegistrationSuccess() {
+  $("#registrationSuccessOverlay").hidden = false;
+}
+
+function closeRegistrationSuccess() {
+  $("#registrationSuccessOverlay").hidden = true;
+  setRoute("home");
 }
 
 function setRoute(route, eventId = null) {
@@ -397,6 +410,52 @@ async function syncCloudProposals(includeAll = false) {
   saveData();
 }
 
+async function syncCloudSettings() {
+  if (!cloudIsConfigured()) return;
+  const response = await fetch(
+    `${CLOUD_CONFIG.supabaseUrl}/rest/v1/site_settings?select=value&key=eq.main&limit=1`,
+    { headers: cloudHeaders() },
+  );
+
+  if (!response.ok) {
+    return;
+  }
+
+  const rows = await response.json();
+  if (!rows.length || !rows[0].value) return;
+
+  state.data.settings = { ...DEFAULT_SETTINGS, ...rows[0].value };
+  saveData();
+}
+
+async function saveCloudSettings() {
+  if (!cloudIsConfigured()) return;
+  const accessToken = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  if (!accessToken) {
+    throw new Error("請先登入管理員帳號，再儲存雲端網站設定。");
+  }
+
+  const response = await fetch(
+    `${CLOUD_CONFIG.supabaseUrl}/rest/v1/site_settings?on_conflict=key`,
+    {
+      method: "POST",
+      headers: {
+        ...cloudHeaders(accessToken),
+        Prefer: "resolution=merge-duplicates",
+      },
+      body: JSON.stringify({
+        key: "main",
+        value: state.data.settings,
+        updated_at: new Date().toISOString(),
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error("網站設定已存在本機，但雲端儲存失敗。");
+  }
+}
+
 function applySettings() {
   const settings = state.data.settings;
   document.title = settings.siteName;
@@ -421,6 +480,8 @@ function populateSettingsForm() {
   form.elements.contactEmail.value = settings.contactEmail;
   form.elements.primaryColor.value = settings.primaryColor;
   form.elements.primaryColorText.value = settings.primaryColor.toUpperCase();
+  form.elements.emailOpening.value = settings.emailOpening;
+  form.elements.emailClosing.value = settings.emailClosing;
   form.elements.heroImageUrl.value =
     settings.heroImage.startsWith("data:") ? "" : settings.heroImage;
 }
@@ -676,7 +737,7 @@ function renderRegistrationPage(proposalId) {
                   <p class="eyebrow">Registration</p>
                   <h2>會員報名</h2>
                 </div>
-                <form id="registrationForm" class="form-grid">
+                <form id="registrationForm" class="form-grid" novalidate>
                   <label>
                     會員姓名
                     <input name="memberName" autocomplete="name" required />
@@ -815,13 +876,20 @@ async function handleSettingsSubmit(event) {
       formData.get("heroImageUrl").trim() ||
       state.data.settings.heroImage ||
       DEFAULT_HERO_IMAGE,
+    emailOpening: formData.get("emailOpening").trim(),
+    emailClosing: formData.get("emailClosing").trim(),
   };
 
   saveData();
+  try {
+    await saveCloudSettings();
+    showToast("網站設定與 Email 通知信已儲存並套用。");
+  } catch (error) {
+    showToast(error.message || "網站設定已存在本機，但雲端儲存失敗。");
+  }
   applySettings();
   populateSettingsForm();
   form.elements.heroImageFile.value = "";
-  showToast("網站設定已儲存並套用。");
 }
 
 function resetSettings() {
@@ -833,13 +901,21 @@ function resetSettings() {
 
 async function handleRegistrationSubmit(event) {
   event.preventDefault();
+  const form = event.currentTarget;
+  if (!form.checkValidity()) {
+    form.reportValidity();
+    showToast("請先填寫會員姓名、Email、手機等必填欄位。");
+    return;
+  }
+
   const proposal = state.data.proposals.find((item) => item.id === state.registrationEventId);
   if (!proposal || remainingSeats(proposal) <= 0) {
     showToast("這場活動目前無法報名。");
     return;
   }
 
-  const formData = new FormData(event.currentTarget);
+  const settings = state.data.settings;
+  const formData = new FormData(form);
   const registration = {
     id: createId("registration"),
     proposalId: proposal.id,
@@ -848,6 +924,8 @@ async function handleRegistrationSubmit(event) {
     eventTime: proposal.startTime || proposal.time,
     eventEndTime: proposal.endTime || "",
     eventLocation: proposal.location,
+    eventCapacity: proposal.capacity,
+    eventPrice: proposal.price,
     memberName: formData.get("memberName").trim(),
     memberType: formData.get("memberType"),
     email: formData.get("email").trim(),
@@ -871,6 +949,10 @@ async function handleRegistrationSubmit(event) {
             eventTime: proposal.startTime || proposal.time,
             eventEndTime: proposal.endTime || "",
             eventLocation: proposal.location,
+            eventCapacity: proposal.capacity,
+            eventPrice: proposal.price,
+            emailOpening: settings.emailOpening,
+            emailClosing: settings.emailClosing,
             memberName: registration.memberName,
             memberType: registration.memberType,
             email: registration.email,
@@ -894,14 +976,13 @@ async function handleRegistrationSubmit(event) {
   state.data.registrations.push(registration);
 
   saveData();
+  showRegistrationSuccess();
   showToast(
-    cloudIsConfigured()
-      ? notificationSent
-        ? "報名成功，管理後台已收到資料並寄出 Email 通知。"
-        : "報名成功，資料已收到，但 Email 通知尚未送達。"
-      : "報名成功，資料已儲存在本機展示後台。",
+    notificationSent
+      ? "報名成功，請前往 email 收信確認。"
+      : "報名成功，資料已收到，系統會寄出 Email 通知。",
   );
-  setRoute("home");
+  form.reset();
 }
 
 async function updateProposalStatus(id, status) {
@@ -1094,6 +1175,7 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.export) exportCsv(target.dataset.export);
   if (target.hasAttribute("data-close-login")) closeLogin();
   if (target.hasAttribute("data-close-event-editor")) closeEventEditor();
+  if (target.hasAttribute("data-close-registration-success")) closeRegistrationSuccess();
   if (target.hasAttribute("data-logout")) logout();
 
   if (target.dataset.copyUrl) {
@@ -1179,7 +1261,7 @@ window.addEventListener("hashchange", bootFromHash);
 bootFromHash();
 
 if (cloudIsConfigured()) {
-  syncCloudProposals(false)
+  Promise.all([syncCloudSettings(), syncCloudProposals(false)])
     .then(render)
-    .catch(() => showToast("目前無法載入雲端活動資料。"));
+    .catch(() => showToast("目前無法載入雲端網站資料。"));
 }
