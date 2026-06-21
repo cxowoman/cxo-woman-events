@@ -107,6 +107,11 @@ function formatDate(date, time) {
   return time ? `${result} ${time}` : result;
 }
 
+function formatEventDate(date, startTime, endTime) {
+  const formatted = formatDate(date, startTime);
+  return endTime ? `${formatted}–${endTime}` : formatted;
+}
+
 function showToast(message) {
   const toast = $("#toast");
   toast.textContent = message;
@@ -263,7 +268,11 @@ function logout() {
 function approvedEvents() {
   return state.data.proposals
     .filter((proposal) => proposal.status === "approved")
-    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+    .sort((a, b) =>
+      `${a.date} ${a.startTime || a.time}`.localeCompare(
+        `${b.date} ${b.startTime || b.time}`,
+      ),
+    );
 }
 
 function registrationsFor(proposalId) {
@@ -322,6 +331,7 @@ async function syncCloudRegistrations() {
     eventTitle: entry.event_title,
     eventDate: entry.event_date,
     eventTime: entry.event_time,
+    eventEndTime: entry.event_end_time || "",
     eventLocation: entry.event_location,
     memberName: entry.member_name,
     memberType: entry.member_type,
@@ -342,6 +352,8 @@ function mapCloudProposal(entry) {
     title: entry.title,
     date: entry.event_date,
     time: entry.event_time,
+    startTime: entry.event_time,
+    endTime: entry.event_end_time || "",
     location: entry.location,
     capacity: entry.capacity,
     price: entry.price,
@@ -418,7 +430,7 @@ function renderPublicEvents() {
             <h3>${event.title}</h3>
             <p>${event.description}</p>
             <div class="event-meta">
-              <span>${formatDate(event.date, event.time)}</span>
+              <span>${formatEventDate(event.date, event.startTime || event.time, event.endTime)}</span>
               <span>${event.location}</span>
               <span>剩餘 ${Math.max(remainingSeats(event), 0)} 位</span>
             </div>
@@ -466,7 +478,8 @@ function renderAllRegistrations() {
       const proposal = state.data.proposals.find((item) => item.id === entry.proposalId);
       const eventTitle = entry.eventTitle || proposal?.title || "活動";
       const eventDate = entry.eventDate || proposal?.date || "";
-      const eventTime = entry.eventTime || proposal?.time || "";
+      const eventTime = entry.eventTime || proposal?.startTime || proposal?.time || "";
+      const eventEndTime = entry.eventEndTime || proposal?.endTime || "";
       const createdAt = new Intl.DateTimeFormat("zh-TW", {
         dateStyle: "medium",
         timeStyle: "short",
@@ -474,7 +487,7 @@ function renderAllRegistrations() {
 
       return `
         <tr>
-          <td><strong>${eventTitle}</strong><span>${eventDate} ${eventTime}</span></td>
+          <td><strong>${eventTitle}</strong><span>${eventDate} ${eventTime}${eventEndTime ? `–${eventEndTime}` : ""}</span></td>
           <td><strong>${entry.memberName}</strong><span>${entry.note || "無備註"}</span></td>
           <td>${entry.email}<span>${entry.phone}</span></td>
           <td>${entry.memberType}</td>
@@ -501,7 +514,7 @@ function renderProposalList() {
             <div class="status-line">
               <span class="pill ${proposal.status}">${statusLabels[proposal.status]}</span>
               <span>${proposal.teacherName}</span>
-              <span>${formatDate(proposal.date, proposal.time)}</span>
+              <span>${formatEventDate(proposal.date, proposal.startTime || proposal.time, proposal.endTime)}</span>
             </div>
             <h3>${proposal.title}</h3>
             <p>${proposal.description.slice(0, 96)}${proposal.description.length > 96 ? "..." : ""}</p>
@@ -539,7 +552,7 @@ function renderAdminDetail() {
       </div>
       <h2>${proposal.title}</h2>
       <div class="detail-meta">
-        <span>${formatDate(proposal.date, proposal.time)}</span>
+        <span>${formatEventDate(proposal.date, proposal.startTime || proposal.time, proposal.endTime)}</span>
         <span>${proposal.location}</span>
         <span>${proposal.price}</span>
       </div>
@@ -609,7 +622,7 @@ function renderRegistrationPage(proposalId) {
           <p class="eyebrow">Event Registration</p>
           <h1>${proposal.title}</h1>
           <div class="detail-meta">
-            <span>${formatDate(proposal.date, proposal.time)}</span>
+            <span>${formatEventDate(proposal.date, proposal.startTime || proposal.time, proposal.endTime)}</span>
             <span>${proposal.location}</span>
             <span>${proposal.price}</span>
             <span>剩餘 ${seats} 位</span>
@@ -676,6 +689,14 @@ async function handleProposalSubmit(event) {
   const form = event.currentTarget;
   const formData = new FormData(form);
   const image = await readImageAsDataUrl(formData.get("image"));
+  const startTime = formData.get("startTime");
+  const endTime = formData.get("endTime");
+
+  if (endTime <= startTime) {
+    showToast("結束時間必須晚於開始時間。");
+    form.elements.endTime.focus();
+    return;
+  }
 
   const proposal = {
     id: createId("proposal"),
@@ -684,7 +705,9 @@ async function handleProposalSubmit(event) {
     teacherEmail: formData.get("teacherEmail").trim(),
     title: formData.get("title").trim(),
     date: formData.get("date"),
-    time: formData.get("time"),
+    time: startTime,
+    startTime,
+    endTime,
     location: formData.get("location").trim(),
     capacity: Number(formData.get("capacity")),
     price: formData.get("price").trim(),
@@ -778,7 +801,8 @@ async function handleRegistrationSubmit(event) {
     proposalId: proposal.id,
     eventTitle: proposal.title,
     eventDate: proposal.date,
-    eventTime: proposal.time,
+    eventTime: proposal.startTime || proposal.time,
+    eventEndTime: proposal.endTime || "",
     eventLocation: proposal.location,
     memberName: formData.get("memberName").trim(),
     memberType: formData.get("memberType"),
@@ -800,7 +824,8 @@ async function handleRegistrationSubmit(event) {
             proposalId: proposal.id,
             eventTitle: proposal.title,
             eventDate: proposal.date,
-            eventTime: proposal.time,
+            eventTime: proposal.startTime || proposal.time,
+            eventEndTime: proposal.endTime || "",
             eventLocation: proposal.location,
             memberName: registration.memberName,
             memberType: registration.memberType,
