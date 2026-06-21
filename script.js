@@ -30,8 +30,11 @@ const state = {
   route: "home",
   selectedProposalId: null,
   registrationEventId: null,
+  registrationPage: 1,
   pendingProtectedRoute: null,
 };
+
+const REGISTRATIONS_PER_PAGE = 10;
 
 const statusLabels = {
   pending: "待審核",
@@ -546,8 +549,15 @@ function renderAllRegistrations() {
   const registrations = [...state.data.registrations].sort((a, b) =>
     b.createdAt.localeCompare(a.createdAt),
   );
+  const totalPages = Math.max(1, Math.ceil(registrations.length / REGISTRATIONS_PER_PAGE));
+  state.registrationPage = Math.min(Math.max(1, state.registrationPage), totalPages);
+  const startIndex = (state.registrationPage - 1) * REGISTRATIONS_PER_PAGE;
+  const visibleRegistrations = registrations.slice(
+    startIndex,
+    startIndex + REGISTRATIONS_PER_PAGE,
+  );
   empty.hidden = registrations.length > 0;
-  rows.innerHTML = registrations
+  rows.innerHTML = visibleRegistrations
     .map((entry) => {
       const proposal = state.data.proposals.find((item) => item.id === entry.proposalId);
       const eventTitle = entry.eventTitle || proposal?.title || "活動";
@@ -566,10 +576,42 @@ function renderAllRegistrations() {
           <td>${entry.email}<span>${entry.phone}</span></td>
           <td>${entry.memberType}</td>
           <td>${createdAt}</td>
+          <td>
+            <button class="danger-btn compact table-action" data-delete-registration="${entry.id}" type="button">
+              刪除
+            </button>
+          </td>
         </tr>
       `;
     })
     .join("");
+
+  renderRegistrationPagination(registrations.length, totalPages);
+}
+
+function renderRegistrationPagination(totalItems, totalPages) {
+  const pagination = $("#registrationPagination");
+  if (!pagination) return;
+
+  if (totalItems <= REGISTRATIONS_PER_PAGE) {
+    pagination.innerHTML = "";
+    return;
+  }
+
+  const startItem = (state.registrationPage - 1) * REGISTRATIONS_PER_PAGE + 1;
+  const endItem = Math.min(state.registrationPage * REGISTRATIONS_PER_PAGE, totalItems);
+  pagination.innerHTML = `
+    <span>顯示 ${startItem}–${endItem} 筆，共 ${totalItems} 筆</span>
+    <div class="pagination-actions">
+      <button class="secondary-btn compact" data-registration-page="prev" type="button" ${
+        state.registrationPage === 1 ? "disabled" : ""
+      }>上一頁</button>
+      <strong>${state.registrationPage} / ${totalPages}</strong>
+      <button class="secondary-btn compact" data-registration-page="next" type="button" ${
+        state.registrationPage === totalPages ? "disabled" : ""
+      }>下一頁</button>
+    </div>
+  `;
 }
 
 function renderProposalList() {
@@ -1151,6 +1193,54 @@ function exportCsv(proposalId) {
   URL.revokeObjectURL(url);
 }
 
+async function deleteRegistration(registrationId) {
+  const registration = state.data.registrations.find((entry) => entry.id === registrationId);
+  if (!registration) {
+    showToast("找不到這筆報名資料。");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `確定要刪除「${registration.memberName}」的報名資料嗎？\n刪除後，這筆報名與尚未寄出的提醒信都會取消。`,
+  );
+  if (!confirmed) return;
+
+  if (cloudIsConfigured()) {
+    const accessToken = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+    if (!accessToken) {
+      showToast("請先重新登入管理後台，再刪除雲端資料。");
+      openLogin("admin");
+      return;
+    }
+
+    const response = await fetch(
+      `${CLOUD_CONFIG.supabaseUrl}/rest/v1/registrations?id=eq.${encodeURIComponent(
+        registrationId,
+      )}`,
+      {
+        method: "DELETE",
+        headers: {
+          ...cloudHeaders(accessToken),
+          Prefer: "return=minimal",
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      showToast(result.message || result.error || "雲端刪除失敗，請確認管理員權限。");
+      return;
+    }
+  }
+
+  state.data.registrations = state.data.registrations.filter(
+    (entry) => entry.id !== registrationId,
+  );
+  saveData();
+  render();
+  showToast("會員報名資料已刪除。");
+}
+
 document.addEventListener("click", async (event) => {
   const target = event.target.closest("button, a");
   if (!target) return;
@@ -1173,6 +1263,18 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.reject) updateProposalStatus(target.dataset.reject, "rejected");
   if (target.dataset.editProposal) openEventEditor(target.dataset.editProposal);
   if (target.dataset.export) exportCsv(target.dataset.export);
+  if (target.dataset.deleteRegistration) {
+    await deleteRegistration(target.dataset.deleteRegistration);
+  }
+  if (target.dataset.registrationPage) {
+    const maxPage = Math.max(
+      1,
+      Math.ceil(state.data.registrations.length / REGISTRATIONS_PER_PAGE),
+    );
+    state.registrationPage += target.dataset.registrationPage === "next" ? 1 : -1;
+    state.registrationPage = Math.min(Math.max(1, state.registrationPage), maxPage);
+    renderAllRegistrations();
+  }
   if (target.hasAttribute("data-close-login")) closeLogin();
   if (target.hasAttribute("data-close-event-editor")) closeEventEditor();
   if (target.hasAttribute("data-close-registration-success")) closeRegistrationSuccess();
