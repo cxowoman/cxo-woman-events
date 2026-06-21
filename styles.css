@@ -43,6 +43,11 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .site-header {
   position: sticky;
   top: 0;
@@ -655,6 +660,26 @@ textarea {
   display: block;
   color: var(--muted);
   font-size: 13px;
+}
+
+.table-action {
+  white-space: nowrap;
+}
+
+.registration-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.pagination-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .registration-panel .empty-state {
