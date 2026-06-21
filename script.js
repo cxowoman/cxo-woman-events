@@ -901,7 +901,7 @@ function resetSettings() {
 
 async function handleRegistrationSubmit(event) {
   event.preventDefault();
-  const form = event.currentTarget;
+  const form = event.target;
   if (!form.checkValidity()) {
     form.reportValidity();
     showToast("請先填寫會員姓名、Email、手機等必填欄位。");
