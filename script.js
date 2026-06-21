@@ -99,17 +99,28 @@ function createSlug(title) {
 
 function formatDate(date, time) {
   if (!date) return "日期未定";
+  const displayTime = time ? time.slice(0, 5) : "";
   const result = new Intl.DateTimeFormat("zh-TW", {
     month: "long",
     day: "numeric",
     weekday: "short",
   }).format(new Date(`${date}T${time || "00:00"}`));
-  return time ? `${result} ${time}` : result;
+  return displayTime ? `${result} ${displayTime}` : result;
 }
 
 function formatEventDate(date, startTime, endTime) {
   const formatted = formatDate(date, startTime);
-  return endTime ? `${formatted}–${endTime}` : formatted;
+  return endTime ? `${formatted}–${endTime.slice(0, 5)}` : formatted;
+}
+
+function formatFullDate(date) {
+  if (!date) return "日期未定";
+  const [year, month, day] = date.split("-");
+  return `${year} / ${month} / ${day}`;
+}
+
+function formatTimeOnly(time) {
+  return time ? time.slice(0, 5) : "時間未定";
 }
 
 function showToast(message) {
@@ -424,18 +435,20 @@ function renderPublicEvents() {
     .map(
       (event) => `
         <article class="event-card">
-          <img class="event-image" src="${event.image || DEFAULT_IMAGE}" alt="${event.title}" />
+          <div class="event-image-wrap">
+            <img class="event-image" src="${event.image || DEFAULT_IMAGE}" alt="${event.title}" />
+          </div>
           <div class="event-body">
-            <span class="pill">${event.category}</span>
             <h3>${event.title}</h3>
-            <p>${event.description}</p>
-            <div class="event-meta">
-              <span>${formatEventDate(event.date, event.startTime || event.time, event.endTime)}</span>
-              <span>${event.location}</span>
-              <span>剩餘 ${Math.max(remainingSeats(event), 0)} 位</span>
+            <div class="event-date">
+              <span class="event-date-label">日期與時間</span>
+              <strong>${formatEventDate(event.date, event.startTime || event.time, event.endTime)}</strong>
             </div>
             <div class="card-actions">
-              <button class="primary-btn compact" data-register="${event.id}" type="button">前往報名</button>
+              <button class="event-detail-btn" data-register="${event.id}" type="button">
+                了解完整資訊
+                <span aria-hidden="true">→</span>
+              </button>
             </div>
           </div>
         </article>
@@ -568,6 +581,7 @@ function renderAdminDetail() {
           : ""
       }
       <div class="detail-actions">
+        <button class="secondary-btn compact" data-edit-proposal="${proposal.id}" type="button">編輯活動資訊</button>
         <button class="primary-btn compact" data-approve="${proposal.id}" type="button">核准並開放報名</button>
         <button class="danger-btn compact" data-reject="${proposal.id}" type="button">退回</button>
         <button class="secondary-btn compact" data-export="${proposal.id}" type="button">匯出名單 CSV</button>
@@ -615,23 +629,54 @@ function renderRegistrationPage(proposalId) {
 
   const seats = Math.max(remainingSeats(proposal), 0);
   shell.innerHTML = `
+    <button class="detail-back-btn" data-route="home" type="button">
+      <span aria-hidden="true">←</span>
+      回活動列表
+    </button>
     <article class="register-card">
       <div class="register-hero">
         <img src="${proposal.image || DEFAULT_IMAGE}" alt="${proposal.title}" />
         <div class="register-copy">
-          <p class="eyebrow">Event Registration</p>
+          <p class="eyebrow">Event Details</p>
           <h1>${proposal.title}</h1>
-          <div class="detail-meta">
-            <span>${formatEventDate(proposal.date, proposal.startTime || proposal.time, proposal.endTime)}</span>
-            <span>${proposal.location}</span>
-            <span>${proposal.price}</span>
-            <span>剩餘 ${seats} 位</span>
+          <div class="event-facts">
+            <div class="event-fact">
+              <span>活動日期</span>
+              <strong>${formatFullDate(proposal.date)}</strong>
+            </div>
+            <div class="event-fact">
+              <span>開始時間</span>
+              <strong>${formatTimeOnly(proposal.startTime || proposal.time)}</strong>
+            </div>
+            <div class="event-fact">
+              <span>結束時間</span>
+              <strong>${formatTimeOnly(proposal.endTime)}</strong>
+            </div>
+            <div class="event-fact">
+              <span>名額</span>
+              <strong>${proposal.capacity} 位 <small>剩餘 ${seats} 位</small></strong>
+            </div>
+            <div class="event-fact event-fact-wide">
+              <span>地點</span>
+              <strong>${proposal.location || "地點未定"}</strong>
+            </div>
+            <div class="event-fact event-fact-wide">
+              <span>費用</span>
+              <strong>${proposal.price || "免費"}</strong>
+            </div>
           </div>
-          <p>${proposal.description}</p>
-          ${proposal.notes ? `<p><strong>注意事項：</strong>${proposal.notes}</p>` : ""}
+          <section class="event-story">
+            <p class="event-story-label">活動主軸</p>
+            <p class="event-story-copy">${proposal.description}</p>
+            ${proposal.notes ? `<p class="event-notes"><strong>注意事項</strong>${proposal.notes}</p>` : ""}
+          </section>
           ${
             seats > 0
-              ? `<form id="registrationForm" class="form-grid">
+              ? `<div class="registration-heading">
+                  <p class="eyebrow">Registration</p>
+                  <h2>會員報名</h2>
+                </div>
+                <form id="registrationForm" class="form-grid">
                   <label>
                     會員姓名
                     <input name="memberName" autocomplete="name" required />
@@ -640,7 +685,6 @@ function renderRegistrationPage(proposalId) {
                     會員身份
                     <select name="memberType" required>
                       <option>正式會員</option>
-                      <option>體驗會員</option>
                       <option>非會員</option>
                     </select>
                   </label>
@@ -897,6 +941,110 @@ async function updateProposalStatus(id, status) {
   render();
 }
 
+function openEventEditor(id) {
+  const proposal = state.data.proposals.find((item) => item.id === id);
+  if (!proposal) return;
+
+  const form = $("#editEventForm");
+  form.elements.proposalId.value = proposal.id;
+  form.elements.title.value = proposal.title;
+  form.elements.date.value = proposal.date;
+  form.elements.category.value = proposal.category;
+  form.elements.startTime.value = (proposal.startTime || proposal.time || "").slice(0, 5);
+  form.elements.endTime.value = (proposal.endTime || "").slice(0, 5);
+  form.elements.location.value = proposal.location;
+  form.elements.capacity.value = proposal.capacity;
+  form.elements.price.value = proposal.price;
+  form.elements.description.value = proposal.description;
+  form.elements.notes.value = proposal.notes || "";
+  $("#editEventError").textContent = "";
+  $("#editEventOverlay").hidden = false;
+  document.body.classList.add("modal-open");
+}
+
+function closeEventEditor() {
+  $("#editEventOverlay").hidden = true;
+  document.body.classList.remove("modal-open");
+}
+
+async function handleEventEditSubmit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const formData = new FormData(form);
+  const id = formData.get("proposalId");
+  const proposal = state.data.proposals.find((item) => item.id === id);
+  if (!proposal) return;
+
+  const startTime = formData.get("startTime");
+  const endTime = formData.get("endTime");
+  if (endTime <= startTime) {
+    $("#editEventError").textContent = "結束時間必須晚於開始時間。";
+    return;
+  }
+
+  const updates = {
+    title: formData.get("title").trim(),
+    date: formData.get("date"),
+    category: formData.get("category"),
+    startTime,
+    time: startTime,
+    endTime,
+    location: formData.get("location").trim(),
+    capacity: Number(formData.get("capacity")),
+    price: formData.get("price").trim(),
+    description: formData.get("description").trim(),
+    notes: formData.get("notes").trim(),
+  };
+
+  const submitButton = form.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  submitButton.textContent = "儲存中...";
+  $("#editEventError").textContent = "";
+
+  try {
+    if (cloudIsConfigured()) {
+      const accessToken = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+      const response = await fetch(
+        `${CLOUD_CONFIG.supabaseUrl}/rest/v1/proposals?id=eq.${encodeURIComponent(id)}`,
+        {
+          method: "PATCH",
+          headers: {
+            ...cloudHeaders(accessToken),
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify({
+            title: updates.title,
+            event_date: updates.date,
+            event_time: updates.startTime,
+            event_end_time: updates.endTime,
+            location: updates.location,
+            capacity: updates.capacity,
+            price: updates.price,
+            category: updates.category,
+            description: updates.description,
+            notes: updates.notes,
+          }),
+        },
+      );
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.message || "雲端活動資訊更新失敗。");
+      }
+    }
+
+    Object.assign(proposal, updates);
+    saveData();
+    closeEventEditor();
+    render();
+    showToast("活動資訊已更新。");
+  } catch (error) {
+    $("#editEventError").textContent = error.message || "活動資訊更新失敗。";
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "儲存活動資訊";
+  }
+}
+
 function exportCsv(proposalId) {
   const proposal = state.data.proposals.find((item) => item.id === proposalId);
   const entries = registrationsFor(proposalId);
@@ -942,8 +1090,10 @@ document.addEventListener("click", async (event) => {
 
   if (target.dataset.approve) updateProposalStatus(target.dataset.approve, "approved");
   if (target.dataset.reject) updateProposalStatus(target.dataset.reject, "rejected");
+  if (target.dataset.editProposal) openEventEditor(target.dataset.editProposal);
   if (target.dataset.export) exportCsv(target.dataset.export);
   if (target.hasAttribute("data-close-login")) closeLogin();
+  if (target.hasAttribute("data-close-event-editor")) closeEventEditor();
   if (target.hasAttribute("data-logout")) logout();
 
   if (target.dataset.copyUrl) {
@@ -961,6 +1111,7 @@ $("#proposalForm").addEventListener("submit", handleProposalSubmit);
 $("#loginForm").addEventListener("submit", handleLogin);
 $("#passwordForm").addEventListener("submit", handlePasswordSetup);
 $("#settingsForm").addEventListener("submit", handleSettingsSubmit);
+$("#editEventForm").addEventListener("submit", handleEventEditSubmit);
 $("#statusFilter").addEventListener("change", renderProposalList);
 $("#resetSettingsButton").addEventListener("click", resetSettings);
 $("#refreshCloudButton").addEventListener("click", async () => {

@@ -65,7 +65,7 @@
         <form class="form-shell" id="proposalForm">
           <div class="form-grid">
             <label>
-              老師姓名
+              女創會員名稱
               <input name="teacherName" autocomplete="name" required placeholder="例如：林佳蓉" />
             </label>
             <label>
@@ -122,7 +122,7 @@
             <label class="wide upload-box">
               活動圖片
               <input name="image" id="proposalImage" type="file" accept="image/*" />
-              <span>可上傳 JPG、PNG 或 WebP。沒有圖片時系統會使用預設封面。</span>
+              <span>建議使用直向 3:4 圖片，可上傳 JPG、PNG 或 WebP。</span>
               <img id="imagePreview" alt="" />
             </label>
           </div>
@@ -331,6 +331,71 @@
         </label>
         <p class="login-error" id="passwordError" role="alert"></p>
         <button class="primary-btn" type="submit">確認設定密碼</button>
+      </form>
+    </div>
+
+    <div class="login-overlay" id="editEventOverlay" hidden>
+      <form class="edit-event-card" id="editEventForm">
+        <button class="login-close" data-close-event-editor type="button" aria-label="關閉編輯視窗">×</button>
+        <div>
+          <p class="eyebrow">Edit Event</p>
+          <h2>編輯活動資訊</h2>
+          <p>儲存後會同步更新首頁、活動詳情與會員報名頁。</p>
+        </div>
+        <input name="proposalId" type="hidden" />
+        <div class="form-grid">
+          <label class="wide">
+            活動名稱
+            <input name="title" required />
+          </label>
+          <label>
+            活動日期
+            <input name="date" type="date" required />
+          </label>
+          <label>
+            活動分類
+            <select name="category" required>
+              <option>手作</option>
+              <option>身心靈</option>
+              <option>親子</option>
+              <option>講座</option>
+              <option>戶外</option>
+            </select>
+          </label>
+          <label>
+            開始時間
+            <input name="startTime" type="time" required />
+          </label>
+          <label>
+            結束時間
+            <input name="endTime" type="time" required />
+          </label>
+          <label class="wide">
+            地點
+            <input name="location" required />
+          </label>
+          <label>
+            名額
+            <input name="capacity" type="number" min="1" required />
+          </label>
+          <label>
+            費用
+            <input name="price" required />
+          </label>
+          <label class="wide">
+            活動主軸與完整文案
+            <textarea name="description" rows="8" required></textarea>
+          </label>
+          <label class="wide">
+            注意事項
+            <textarea name="notes" rows="4"></textarea>
+          </label>
+        </div>
+        <p class="login-error" id="editEventError" role="alert"></p>
+        <div class="edit-event-actions">
+          <button class="secondary-btn" data-close-event-editor type="button">取消</button>
+          <button class="primary-btn" type="submit">儲存活動資訊</button>
+        </div>
       </form>
     </div>
 
