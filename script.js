@@ -4,7 +4,7 @@ const DEFAULT_IMAGE =
 const DEFAULT_HERO_IMAGE =
   "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1800&q=80";
 const DEFAULT_SETTINGS = {
-  siteName: "女創俱樂部｜實體聚會",
+  siteName: "女創俱樂部 實體聚會報名",
   tagline: "舞台影響力",
   heroTitle: "讓妳的專業被看見，讓每一次聚會都創造新的可能",
   heroDescription:
@@ -60,6 +60,12 @@ function loadData() {
     );
     if (settings.primaryColor.toLowerCase() === "#45634d") {
       settings.primaryColor = "#003e3e";
+    }
+    if (
+      settings.siteName === "月活動中心" ||
+      settings.siteName === "女創俱樂部｜實體聚會"
+    ) {
+      settings.siteName = DEFAULT_SETTINGS.siteName;
     }
 
     return {
@@ -128,6 +134,23 @@ function formatFullDate(date) {
 
 function formatTimeOnly(time) {
   return time ? time.slice(0, 5) : "時間未定";
+}
+
+function eventEndDate(proposal) {
+  if (!proposal?.date) return null;
+  const endTime = proposal.endTime || proposal.startTime || proposal.time || "23:59:59";
+  const normalizedTime = endTime.length === 5 ? `${endTime}:00` : endTime;
+  const date = new Date(`${proposal.date}T${normalizedTime}`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function eventHasEnded(proposal) {
+  const endDate = eventEndDate(proposal);
+  return endDate ? endDate < new Date() : false;
+}
+
+function isOpenForRegistration(proposal) {
+  return proposal.status === "approved" && !eventHasEnded(proposal);
 }
 
 function showToast(message) {
@@ -294,7 +317,7 @@ function logout() {
 
 function approvedEvents() {
   return state.data.proposals
-    .filter((proposal) => proposal.status === "approved")
+    .filter(isOpenForRegistration)
     .sort((a, b) =>
       `${a.date} ${a.startTime || a.time}`.localeCompare(
         `${b.date} ${b.startTime || b.time}`,
@@ -409,7 +432,8 @@ async function syncCloudProposals(includeAll = false) {
     throw new Error("無法讀取雲端活動資料。");
   }
 
-  state.data.proposals = (await response.json()).map(mapCloudProposal);
+  const proposals = (await response.json()).map(mapCloudProposal);
+  state.data.proposals = includeAll ? proposals : proposals.filter(isOpenForRegistration);
   saveData();
 }
 
@@ -524,7 +548,7 @@ function renderPublicEvents() {
 function renderStats() {
   const stats = [
     ["待審核提案", state.data.proposals.filter((item) => item.status === "pending").length],
-    ["已開放活動", state.data.proposals.filter((item) => item.status === "approved").length],
+    ["已開放活動", state.data.proposals.filter(isOpenForRegistration).length],
     ["已退回提案", state.data.proposals.filter((item) => item.status === "rejected").length],
     ["總報名人次", state.data.registrations.length],
   ];
@@ -657,12 +681,14 @@ function renderAdminDetail() {
 
   const entries = registrationsFor(proposal.id);
   const registerUrl = `${location.origin}${location.pathname}#register/${proposal.id}`;
+  const hasEnded = eventHasEnded(proposal);
 
   detail.innerHTML = `
     <img class="detail-image" src="${proposal.image || DEFAULT_IMAGE}" alt="${proposal.title}" />
     <div class="detail-body">
       <div class="status-line">
         <span class="pill ${proposal.status}">${statusLabels[proposal.status]}</span>
+        ${hasEnded ? `<span>已結束</span>` : ""}
         <span>${proposal.category}</span>
         <span>${entries.length}/${proposal.capacity} 人報名</span>
       </div>
@@ -676,7 +702,7 @@ function renderAdminDetail() {
       ${proposal.notes ? `<p><strong>注意事項：</strong>${proposal.notes}</p>` : ""}
       <p><strong>提案老師：</strong>${proposal.teacherName} / ${proposal.teacherEmail}</p>
       ${
-        proposal.status === "approved"
+        isOpenForRegistration(proposal)
           ? `<div class="copy-box">
               <code>${registerUrl}</code>
               <button class="secondary-btn compact" data-copy-url="${proposal.id}" type="button">複製</button>
@@ -687,6 +713,7 @@ function renderAdminDetail() {
         <button class="secondary-btn compact" data-edit-proposal="${proposal.id}" type="button">編輯活動資訊</button>
         <button class="primary-btn compact" data-approve="${proposal.id}" type="button">核准並開放報名</button>
         <button class="danger-btn compact" data-reject="${proposal.id}" type="button">退回</button>
+        <button class="danger-btn compact" data-delete-proposal="${proposal.id}" type="button">刪除活動</button>
         <button class="secondary-btn compact" data-export="${proposal.id}" type="button">匯出名單 CSV</button>
       </div>
       <div class="registrations">
@@ -716,14 +743,14 @@ function renderAdminDetail() {
 function renderRegistrationPage(proposalId) {
   const shell = $("#registrationShell");
   const proposal = state.data.proposals.find(
-    (item) => item.id === proposalId && item.status === "approved",
+    (item) => item.id === proposalId && isOpenForRegistration(item),
   );
 
   if (!proposal) {
     shell.innerHTML = `
       <div class="empty-state">
         <h3>找不到可報名的活動</h3>
-        <p>這個活動可能尚未核准，或報名頁連結已失效。</p>
+        <p>這個活動可能尚未核准、已結束、已刪除，或報名頁連結已失效。</p>
         <button class="secondary-btn" data-route="home" type="button">回活動列表</button>
       </div>
     `;
@@ -951,7 +978,7 @@ async function handleRegistrationSubmit(event) {
   }
 
   const proposal = state.data.proposals.find((item) => item.id === state.registrationEventId);
-  if (!proposal || remainingSeats(proposal) <= 0) {
+  if (!proposal || !isOpenForRegistration(proposal) || remainingSeats(proposal) <= 0) {
     showToast("這場活動目前無法報名。");
     return;
   }
@@ -1062,6 +1089,53 @@ async function updateProposalStatus(id, status) {
   saveData();
   showToast(status === "approved" ? "活動已核准並開放報名。" : "提案已退回。");
   render();
+}
+
+async function deleteProposal(id) {
+  const proposal = state.data.proposals.find((item) => item.id === id);
+  if (!proposal) {
+    showToast("找不到這個活動。");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `確定要刪除「${proposal.title}」嗎？\n刪除後，前台不會再顯示這個活動，報名連結也會失效。`,
+  );
+  if (!confirmed) return;
+
+  if (cloudIsConfigured()) {
+    const accessToken = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+    if (!accessToken) {
+      showToast("請先重新登入管理後台，再刪除雲端活動。");
+      openLogin("admin");
+      return;
+    }
+
+    const response = await fetch(
+      `${CLOUD_CONFIG.supabaseUrl}/rest/v1/proposals?id=eq.${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+        headers: {
+          ...cloudHeaders(accessToken),
+          Prefer: "return=minimal",
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      showToast(result.message || result.error || "雲端活動刪除失敗，請確認管理員權限。");
+      return;
+    }
+  }
+
+  state.data.proposals = state.data.proposals.filter((item) => item.id !== id);
+  if (state.selectedProposalId === id) {
+    state.selectedProposalId = state.data.proposals[0]?.id || null;
+  }
+  saveData();
+  render();
+  showToast("活動已刪除，前台報名連結已失效。");
 }
 
 function openEventEditor(id) {
@@ -1261,6 +1335,7 @@ document.addEventListener("click", async (event) => {
 
   if (target.dataset.approve) updateProposalStatus(target.dataset.approve, "approved");
   if (target.dataset.reject) updateProposalStatus(target.dataset.reject, "rejected");
+  if (target.dataset.deleteProposal) await deleteProposal(target.dataset.deleteProposal);
   if (target.dataset.editProposal) openEventEditor(target.dataset.editProposal);
   if (target.dataset.export) exportCsv(target.dataset.export);
   if (target.dataset.deleteRegistration) {
