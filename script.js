@@ -760,6 +760,7 @@ function renderAdminDetail() {
                       <span>${entry.email} / ${entry.phone}</span>
                       <span>${entry.note || "無備註"}</span>
                     </div>
+  if (state.route === "register") renderRegistrationPage(state.registrationEventId);
                     <span>${entry.memberType}</span>
                   </div>
                 `,
