@@ -16,6 +16,8 @@ const DEFAULT_SETTINGS = {
     "親愛的會員您好，\n\n我們已收到您的活動報名，以下是本次活動資訊，請您先保留時間並確認資料。",
   emailClosing:
     "提醒您，活動前系統會再寄出提醒信。\n\n期待在活動現場與您相見。\n\nCXO Woman 女創俱樂部",
+  registrationDriveUrl:
+    "https://docs.google.com/spreadsheets/d/1L5--DOE5ErQlfpjlqN0_tiuOgWWI4f7pqM4NWQzmW6Y",
 };
 const ADMIN_USERNAME = "admin@example.com";
 const ADMIN_PASSWORD = "cxo2026";
@@ -338,6 +340,7 @@ function render() {
   renderPublicEvents();
   renderStats();
   renderAllRegistrations();
+  renderRegistrationDrivePanel();
   renderProposalList();
   renderAdminDetail();
   renderCloudStatus();
@@ -509,6 +512,7 @@ function populateSettingsForm() {
   form.elements.primaryColorText.value = settings.primaryColor.toUpperCase();
   form.elements.emailOpening.value = settings.emailOpening;
   form.elements.emailClosing.value = settings.emailClosing;
+  form.elements.registrationDriveUrl.value = settings.registrationDriveUrl || "";
   form.elements.heroImageUrl.value =
     settings.heroImage.startsWith("data:") ? "" : settings.heroImage;
 }
@@ -634,6 +638,33 @@ function renderRegistrationPagination(totalItems, totalPages) {
       <button class="secondary-btn compact" data-registration-page="next" type="button" ${
         state.registrationPage === totalPages ? "disabled" : ""
       }>下一頁</button>
+    </div>
+  `;
+}
+
+function renderRegistrationDrivePanel() {
+  const panel = $("#registrationDrivePanel");
+  if (!panel) return;
+
+  const driveUrl = state.data.settings.registrationDriveUrl || "";
+  panel.innerHTML = `
+    <div>
+      <p class="eyebrow">Google Drive</p>
+      <h2>雲端報名資料</h2>
+      <p>
+        夥伴可透過 Google Sheet 查看或下載報名資料；若需要最新名單，也可先按「下載全部 CSV」再上傳到這份總表。
+      </p>
+    </div>
+    <div class="drive-actions">
+      ${
+        driveUrl
+          ? `<a class="primary-btn compact" href="${driveUrl}" target="_blank" rel="noopener">開啟雲端總表</a>
+             <button class="secondary-btn compact" data-copy-drive-link type="button">複製雲端連結</button>`
+          : `<button class="secondary-btn compact" data-route="settings" type="button">設定雲端連結</button>`
+      }
+      <button class="secondary-btn compact" data-export-all-registrations type="button">
+        下載全部 CSV
+      </button>
     </div>
   `;
 }
@@ -947,6 +978,7 @@ async function handleSettingsSubmit(event) {
       DEFAULT_HERO_IMAGE,
     emailOpening: formData.get("emailOpening").trim(),
     emailClosing: formData.get("emailClosing").trim(),
+    registrationDriveUrl: formData.get("registrationDriveUrl").trim(),
   };
 
   saveData();
@@ -1242,29 +1274,64 @@ async function handleEventEditSubmit(event) {
   }
 }
 
-function exportCsv(proposalId) {
-  const proposal = state.data.proposals.find((item) => item.id === proposalId);
-  const entries = registrationsFor(proposalId);
-  const header = ["活動", "姓名", "會員身份", "Email", "手機", "備註", "報名時間"];
-  const rows = entries.map((entry) => [
-    proposal.title,
+const registrationCsvHeader = [
+  "活動",
+  "活動日期",
+  "開始時間",
+  "結束時間",
+  "地點",
+  "姓名",
+  "會員身份",
+  "Email",
+  "手機",
+  "備註",
+  "報名時間",
+];
+
+function registrationCsvRow(entry, proposal = null) {
+  return [
+    entry.eventTitle || proposal?.title || "活動",
+    entry.eventDate || proposal?.date || "",
+    entry.eventTime || proposal?.startTime || proposal?.time || "",
+    entry.eventEndTime || proposal?.endTime || "",
+    entry.eventLocation || proposal?.location || "",
     entry.memberName,
     entry.memberType,
     entry.email,
     entry.phone,
     entry.note,
     entry.createdAt,
-  ]);
-  const csv = [header, ...rows]
+  ];
+}
+
+function downloadCsv(filename, rows) {
+  const csv = [registrationCsvHeader, ...rows]
     .map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(","))
     .join("\n");
   const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${proposal.slug || proposal.id}-registrations.csv`;
+  link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function exportCsv(proposalId) {
+  const proposal = state.data.proposals.find((item) => item.id === proposalId);
+  const entries = registrationsFor(proposalId);
+  const rows = entries.map((entry) => registrationCsvRow(entry, proposal));
+  downloadCsv(`${proposal.slug || proposal.id}-registrations.csv`, rows);
+}
+
+function exportAllRegistrationsCsv() {
+  const rows = [...state.data.registrations]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((entry) => {
+      const proposal = state.data.proposals.find((item) => item.id === entry.proposalId);
+      return registrationCsvRow(entry, proposal);
+    });
+  downloadCsv(`cxo-woman-all-registrations-${new Date().toISOString().slice(0, 10)}.csv`, rows);
 }
 
 async function deleteRegistration(registrationId) {
@@ -1338,6 +1405,7 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.deleteProposal) await deleteProposal(target.dataset.deleteProposal);
   if (target.dataset.editProposal) openEventEditor(target.dataset.editProposal);
   if (target.dataset.export) exportCsv(target.dataset.export);
+  if (target.hasAttribute("data-export-all-registrations")) exportAllRegistrationsCsv();
   if (target.dataset.deleteRegistration) {
     await deleteRegistration(target.dataset.deleteRegistration);
   }
@@ -1362,6 +1430,15 @@ document.addEventListener("click", async (event) => {
       showToast("報名連結已複製。");
     } catch {
       showToast("目前瀏覽器不允許自動複製，請手動選取連結。");
+    }
+  }
+
+  if (target.hasAttribute("data-copy-drive-link")) {
+    try {
+      await navigator.clipboard.writeText(state.data.settings.registrationDriveUrl);
+      showToast("雲端報名資料連結已複製。");
+    } catch {
+      showToast("目前瀏覽器不允許自動複製，請到網站設定手動複製。");
     }
   }
 });
