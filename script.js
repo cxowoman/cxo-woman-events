@@ -70,9 +70,10 @@ function loadData() {
       settings.siteName = DEFAULT_SETTINGS.siteName;
     }
 
+    const useCloudData = cloudIsConfigured();
     return {
-      proposals: data.proposals || [],
-      registrations: data.registrations || [],
+      proposals: useCloudData ? [] : data.proposals || [],
+      registrations: useCloudData ? [] : data.registrations || [],
       settings,
     };
   } catch {
@@ -760,7 +761,6 @@ function renderAdminDetail() {
                       <span>${entry.email} / ${entry.phone}</span>
                       <span>${entry.note || "無備註"}</span>
                     </div>
-  if (state.route === "register") renderRegistrationPage(state.registrationEventId);
                     <span>${entry.memberType}</span>
                   </div>
                 `,
