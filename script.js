@@ -337,6 +337,7 @@ function remainingSeats(proposal) {
 
 function render() {
   applySettings();
+  if (state.route === "register") renderRegistrationPage(state.registrationEventId);
   renderPublicEvents();
   renderStats();
   renderAllRegistrations();
